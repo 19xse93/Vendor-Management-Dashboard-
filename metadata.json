@@ -1,0 +1,6 @@
+{
+  "name": "Elev8 Vendor Hub",
+  "description": "Centralized vendor management platform for Elev8 Media, Elev8 Holdings, and Elev8 Trading & Marketing, streamlining contract renewals, performance, and compliance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
