@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Authenticated administrator of Elev8 secure corporate procurement",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Auth-generated UUID matching request.auth.uid" },
+        "email": { "type": "string", "description": "Professional email address verified by identity provider" },
+        "role": { "type": "string", "description": "Security group determining action clearance", "enum": ["ADMIN", "COMPLIANCE_OFFICER", "GUEST_AUDITOR"] },
+        "fullName": { "type": "string", "description": "Readable name of representative" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "role"]
+    },
+    "CompanyDocument": {
+      "title": "Corporate Subsidiary Credentials",
+      "description": "Secure legal filings, tax forms, and licenses for the Elev8 entities",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "documentType": { "type": "string" },
+        "subsidiary": { "type": "string", "enum": ["ALL", "MEDIA", "HOLDINGS", "TRADING"] },
+        "fileName": { "type": "string" },
+        "fileSize": { "type": "string" },
+        "status": { "type": "string", "enum": ["valid", "pending_verification", "expired", "failed_audit"] },
+        "expiryDate": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "uploadedAt": { "type": "string", "format": "date-time" },
+        "remarks": { "type": "string" },
+        "fileData": { "type": "string", "description": "Encrypted or base64 raw binary replica representing the uploaded file" }
+      },
+      "required": ["id", "documentType", "subsidiary", "status", "uploadedBy", "uploadedAt"]
+    },
+    "ComplianceCheck": {
+      "title": "Onboarded Vendor Compliance Audits",
+      "description": "External third-party vendor licenses & clearances subjected to continuous monitoring",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "vendorId": { "type": "string" },
+        "vendorName": { "type": "string" },
+        "checkType": { "type": "string" },
+        "status": { "type": "string", "enum": ["passed", "pending", "failed", "expired"] },
+        "expiryDate": { "type": "string" },
+        "documentName": { "type": "string" },
+        "remarks": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "fileData": { "type": "string", "description": "Base64 payload representing files uploaded securely" },
+        "fileSize": { "type": "string" }
+      },
+      "required": ["id", "vendorId", "vendorName", "checkType", "status", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Database containing isolated user permissions profile mapped to UID"
+    },
+    "/company_documents/{docId}": {
+      "schema": "CompanyDocument",
+      "description": "Central storage database of subsidiary qualifications"
+    },
+    "/compliance_checks/{checkId}": {
+      "schema": "ComplianceCheck",
+      "description": "Vendor certification files mapped to central credentials tracking checklist"
+    }
+  }
+}

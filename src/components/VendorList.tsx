@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Vendor, Contract, PerformanceReview, ComplianceCheck, BusinessUnit, BUSINESS_UNITS } from '../types';
 import { 
@@ -28,6 +28,7 @@ interface VendorListProps {
   compliance: ComplianceCheck[];
   onAddVendor: (vendor: Omit<Vendor, 'id' | 'overallScore' | 'createdAt'>) => void;
   onUpdateVendorStatus: (vendorId: string, status: Vendor['status']) => void;
+  onUpdateVendorRisk: (vendorId: string, riskRating: Vendor['riskRating'], riskFactors: Record<string, 'Low' | 'Medium' | 'High'>, reason: string) => void;
   onRenewContract: (contract: Contract) => void;
   onAddReview: (vendorId: string, review: Omit<PerformanceReview, 'id' | 'vendorId' | 'vendorName' | 'overallScore'>) => void;
   onUpdateCompliance: (checkId: string, status: ComplianceCheck['status'], remarks: string) => void;
@@ -41,6 +42,7 @@ export default function VendorList({
   compliance,
   onAddVendor,
   onUpdateVendorStatus,
+  onUpdateVendorRisk,
   onRenewContract,
   onAddReview,
   onUpdateCompliance,
@@ -65,6 +67,24 @@ export default function VendorList({
   const [newRisk, setNewRisk] = useState<'Low' | 'Medium' | 'High'>('Low');
   const [newPaymentTerms, setNewPaymentTerms] = useState('Net 30');
   const [newTermDuration, setNewTermDuration] = useState('12 Months');
+
+  // Individual Risk Factor States for brand new registrations
+  const [registFinancialRisk, setRegistFinancialRisk] = useState<'Low' | 'Medium' | 'High'>('Low');
+  const [registComplianceRisk, setRegistComplianceRisk] = useState<'Low' | 'Medium' | 'High'>('Low');
+  const [registSecurityRisk, setRegistSecurityRisk] = useState<'Low' | 'Medium' | 'High'>('Low');
+  const [registOperationalRisk, setRegistOperationalRisk] = useState<'Low' | 'Medium' | 'High'>('Low');
+
+  // Auto calculate initial rating recommendation based on selected factors
+  useEffect(() => {
+    const list = [registFinancialRisk, registComplianceRisk, registSecurityRisk, registOperationalRisk];
+    if (list.includes('High')) {
+      setNewRisk('High');
+    } else if (list.includes('Medium')) {
+      setNewRisk('Medium');
+    } else {
+      setNewRisk('Low');
+    }
+  }, [registFinancialRisk, registComplianceRisk, registSecurityRisk, registOperationalRisk]);
 
   // Filter vendors
   const filteredVendors = vendors.filter(vendor => {
@@ -106,7 +126,13 @@ export default function VendorList({
       complianceScore: 100,
       riskRating: newRisk,
       paymentTerms: newPaymentTerms,
-      termDuration: newTermDuration
+      termDuration: newTermDuration,
+      riskFactors: {
+        financial: registFinancialRisk,
+        compliance: registComplianceRisk,
+        security: registSecurityRisk,
+        operational: registOperationalRisk
+      }
     });
 
     // Reset Form
@@ -117,6 +143,10 @@ export default function VendorList({
     setNewBUSelections([]);
     setNewPaymentTerms('Net 30');
     setNewTermDuration('12 Months');
+    setRegistFinancialRisk('Low');
+    setRegistComplianceRisk('Low');
+    setRegistSecurityRisk('Low');
+    setRegistOperationalRisk('Low');
     setShowAddVendorForm(false);
   };
 
@@ -382,11 +412,11 @@ export default function VendorList({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs bg-slate-50 p-4 rounded-xl border border-slate-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs bg-slate-50 p-4 rounded-xl border border-slate-100">
             {/* BU multi select */}
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-1">
               <label className="font-bold text-slate-800 block">Assigned Elev8 Subsidiaries (Choose at least one)</label>
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col gap-2.5 mt-1.5">
                 {(Object.keys(BUSINESS_UNITS) as BusinessUnit[]).map(buKey => {
                   const details = BUSINESS_UNITS[buKey];
                   const isChecked = newBUSelections.includes(buKey);
@@ -407,23 +437,89 @@ export default function VendorList({
               </div>
             </div>
 
-            {/* Risk rating */}
-            <div className="space-y-1">
-              <label className="font-bold text-slate-800 block">Initial Risk Evaluation</label>
-              <div className="flex gap-4 mt-1">
-                {['Low', 'Medium', 'High'].map(r => (
-                  <label key={r} className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="risk"
-                      value={r}
-                      checked={newRisk === r}
-                      onChange={() => setNewRisk(r as any)}
-                      className="accent-indigo-605 text-indigo-600"
-                    />
-                    <span className="font-bold">{r} Risk</span>
-                  </label>
-                ))}
+            {/* Risk factors block */}
+            <div className="md:col-span-2 space-y-3 bg-rose-50/15 border border-rose-100/40 p-4 rounded-xl">
+              <span className="font-bold text-rose-900 block text-xs">Supplier Risk Factors Evaluation Checklist</span>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Financial Stability */}
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700 block">Financial Stability</label>
+                  <select
+                    value={registFinancialRisk}
+                    onChange={e => setRegistFinancialRisk(e.target.value as any)}
+                    className="w-full p-2 border border-slate-200 bg-white rounded-xl focus:ring-1 focus:ring-indigo-500 outline-none text-slate-700"
+                  >
+                    <option value="Low">Low Risk</option>
+                    <option value="Medium">Medium Risk</option>
+                    <option value="High">High Risk</option>
+                  </select>
+                </div>
+                {/* Regulatory & Compliance */}
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700 block">Compliance / Permits</label>
+                  <select
+                    value={registComplianceRisk}
+                    onChange={e => setRegistComplianceRisk(e.target.value as any)}
+                    className="w-full p-2 border border-slate-200 bg-white rounded-xl focus:ring-1 focus:ring-indigo-500 outline-none text-slate-700"
+                  >
+                    <option value="Low">Low Risk</option>
+                    <option value="Medium">Medium Risk</option>
+                    <option value="High">High Risk</option>
+                  </select>
+                </div>
+                {/* IT Security */}
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700 block">IT / Data Security</label>
+                  <select
+                    value={registSecurityRisk}
+                    onChange={e => setRegistSecurityRisk(e.target.value as any)}
+                    className="w-full p-2 border border-slate-200 bg-white rounded-xl focus:ring-1 focus:ring-indigo-500 outline-none text-slate-700"
+                  >
+                    <option value="Low">Low Risk</option>
+                    <option value="Medium">Medium Risk</option>
+                    <option value="High">High Risk</option>
+                  </select>
+                </div>
+                {/* Operational */}
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700 block">Operational & SLA</label>
+                  <select
+                    value={registOperationalRisk}
+                    onChange={e => setRegistOperationalRisk(e.target.value as any)}
+                    className="w-full p-2 border border-slate-200 bg-white rounded-xl focus:ring-1 focus:ring-indigo-500 outline-none text-slate-700"
+                  >
+                    <option value="Low">Low Risk</option>
+                    <option value="Medium">Medium Risk</option>
+                    <option value="High">High Risk</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Aggregation Summary Indicator */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-3 border-t border-rose-100/50 mt-1 gap-2">
+                <div className="text-[11px] text-slate-500 font-medium">
+                  System recommendation: <span className={`font-extrabold ${newRisk === 'High' ? 'text-rose-600' : newRisk === 'Medium' ? 'text-amber-600' : 'text-emerald-600'}`}>{newRisk} Risk</span>
+                </div>
+                
+                {/* Final Override Selection */}
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-700 text-[11px]">Override Rating:</span>
+                  <div className="flex gap-2 bg-white px-2 py-1 rounded-lg border">
+                    {['Low', 'Medium', 'High'].map(r => (
+                      <label key={r} className="flex items-center gap-1 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="risk"
+                          value={r}
+                          checked={newRisk === r}
+                          onChange={() => setNewRisk(r as any)}
+                          className="accent-indigo-600 text-indigo-600"
+                        />
+                        <span className="font-bold text-[11px]">{r}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -616,6 +712,16 @@ export default function VendorList({
             onAddComplianceCheck(selectedVendor.id, check);
             const updated = vendors.find(v => v.id === selectedVendor.id);
             if (updated) setSelectedVendor(updated);
+          }}
+          onUpdateVendorRisk={(riskRating, riskFactors, reason) => {
+            onUpdateVendorRisk(selectedVendor.id, riskRating, riskFactors, reason);
+            // Refresh local reference for immediately reflecting risk changes
+            setSelectedVendor(prev => {
+              if (prev) {
+                return { ...prev, riskRating, riskFactors };
+              }
+              return null;
+            });
           }}
         />
       )}

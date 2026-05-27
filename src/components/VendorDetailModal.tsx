@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Vendor, Contract, PerformanceReview, ComplianceCheck, BUSINESS_UNITS, BusinessUnit } from '../types';
 import { 
   X, 
@@ -20,7 +20,8 @@ import {
   UploadCloud,
   Check,
   Download,
-  Eye
+  Eye,
+  ShieldAlert
 } from 'lucide-react';
 
 interface VendorDetailModalProps {
@@ -40,6 +41,7 @@ interface VendorDetailModalProps {
     fileSize?: string
   ) => void;
   onAddComplianceCheck: (check: Omit<ComplianceCheck, 'id' | 'vendorId' | 'vendorName' | 'updatedAt'>) => void;
+  onUpdateVendorRisk: (riskRating: Vendor['riskRating'], riskFactors: Record<string, 'Low' | 'Medium' | 'High'>, reason: string) => void;
 }
 
 export default function VendorDetailModal({
@@ -51,9 +53,10 @@ export default function VendorDetailModal({
   onRenewContract,
   onAddReview,
   onUpdateCompliance,
-  onAddComplianceCheck
+  onAddComplianceCheck,
+  onUpdateVendorRisk
 }: VendorDetailModalProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'contracts' | 'performance' | 'compliance'>('contracts');
+  const [activeSubTab, setActiveSubTab] = useState<'contracts' | 'performance' | 'compliance' | 'risk_evaluation'>('contracts');
   
   // States for adding a performance review
   const [showAddReviewForm, setShowAddReviewForm] = useState(false);
@@ -77,6 +80,26 @@ export default function VendorDetailModal({
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<{name: string, data: string, size: string} | null>(null);
   const [previewCheck, setPreviewCheck] = useState<ComplianceCheck | null>(null);
+
+  // States for updatable risk evaluation
+  const [evalRiskRating, setEvalRiskRating] = useState<Vendor['riskRating']>(vendor.riskRating);
+  const [evalFinancial, setEvalFinancial] = useState<'Low' | 'Medium' | 'High'>(vendor.riskFactors?.financial || 'Low');
+  const [evalCompliance, setEvalCompliance] = useState<'Low' | 'Medium' | 'High'>(vendor.riskFactors?.compliance || 'Low');
+  const [evalSecurity, setEvalSecurity] = useState<'Low' | 'Medium' | 'High'>(vendor.riskFactors?.security || 'Low');
+  const [evalOperational, setEvalOperational] = useState<'Low' | 'Medium' | 'High'>(vendor.riskFactors?.operational || 'Low');
+  const [evalReason, setEvalReason] = useState('');
+  const [showSuccessMsg, setShowSuccessMsg] = useState(false);
+
+  // Sync state when selected vendor changes
+  useEffect(() => {
+    setEvalRiskRating(vendor.riskRating);
+    setEvalFinancial(vendor.riskFactors?.financial || 'Low');
+    setEvalCompliance(vendor.riskFactors?.compliance || 'Low');
+    setEvalSecurity(vendor.riskFactors?.security || 'Low');
+    setEvalOperational(vendor.riskFactors?.operational || 'Low');
+    setEvalReason('');
+    setShowSuccessMsg(false);
+  }, [vendor.id, vendor.riskRating, vendor.riskFactors]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -120,6 +143,32 @@ export default function VendorDetailModal({
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  };
+
+  const computedRating = (() => {
+    const list = [evalFinancial, evalCompliance, evalSecurity, evalOperational];
+    if (list.includes('High')) return 'High';
+    if (list.includes('Medium')) return 'Medium';
+    return 'Low';
+  })();
+
+  const handleRiskSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!evalReason.trim()) return;
+    onUpdateVendorRisk(
+      evalRiskRating,
+      {
+        financial: evalFinancial,
+        compliance: evalCompliance,
+        security: evalSecurity,
+        operational: evalOperational
+      },
+      evalReason
+    );
+    setShowSuccessMsg(true);
+    setTimeout(() => {
+      setShowSuccessMsg(false);
+    }, 3000);
   };
 
   // Selected sub-items
@@ -311,6 +360,20 @@ export default function VendorDetailModal({
             <div className="flex items-center justify-center gap-2">
               <ShieldCheck className="w-4.5 h-4.5" />
               Credentials Audits ({vendorCompliance.length})
+            </div>
+          </button>
+          <button
+            id="subtab_risk_evaluation_btn"
+            onClick={() => setActiveSubTab('risk_evaluation')}
+            className={`flex-1 py-3 text-sm font-bold border-b-2 cursor-pointer transition-colors ${
+              activeSubTab === 'risk_evaluation'
+                ? 'border-indigo-500 text-indigo-600 bg-indigo-500/5'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <ShieldAlert className="w-4.5 h-4.5" />
+              Risk Evaluate & Factors
             </div>
           </button>
         </div>
@@ -860,6 +923,147 @@ export default function VendorDetailModal({
                     );
                   })
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeSubTab === 'risk_evaluation' && (
+            <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+              {/* Header card description */}
+              <div className="bg-white border p-4 rounded-xl shadow-xs space-y-1">
+                <h3 className="font-bold text-slate-800 text-sm">Corporate Supplier Risk Evaluation Engine</h3>
+                <p className="text-slate-400">
+                  Assess and update operational, financial, compliance, and cybersecurity risk elements for <strong>{vendor.name}</strong>. Evaluated entries are immediately preserved in the central audit registry.
+                </p>
+              </div>
+
+              {/* Matrix Board */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { title: 'Financial Solvency', key: 'financial_fac', val: evalFinancial, set: setEvalFinancial, desc: 'Balance sheet & funding rating' },
+                  { title: 'Compliance & Permits', key: 'compliance_fac', val: evalCompliance, set: setEvalCompliance, desc: 'Licenses & legal stand' },
+                  { title: 'IT & Cyber Security', key: 'security_fac', val: evalSecurity, set: setEvalSecurity, desc: 'Datashield & privacy' },
+                  { title: 'Operational & SLA', key: 'operational_fac', val: evalOperational, set: setEvalOperational, desc: 'Deliveries & logistic' }
+                ].map(fac => {
+                  const valColor = fac.val === 'High' ? 'bg-rose-50 border-rose-100 text-rose-700' : fac.val === 'Medium' ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-emerald-50 border-emerald-100 text-emerald-700';
+                  return (
+                    <div key={fac.key} className={`border p-3.5 rounded-xl transition-all space-y-2 flex flex-col justify-between ${valColor}`}>
+                      <div>
+                        <span className="font-bold text-slate-800 block text-[11px] uppercase tracking-wide">{fac.title}</span>
+                        <span className="text-[10px] text-slate-500 font-medium block mt-0.5">{fac.desc}</span>
+                      </div>
+                      <div className="pt-2">
+                        <select
+                          id={`risk_factor_select_${fac.key}`}
+                          value={fac.val}
+                          onChange={(e) => fac.set(e.target.value as any)}
+                          className="w-full text-xs font-bold p-1.5 border rounded-lg bg-white cursor-pointer outline-none text-slate-800 border-slate-200"
+                        >
+                          <option value="Low">Low Risk</option>
+                          <option value="Medium">Medium Risk</option>
+                          <option value="High">High Risk</option>
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Overall Assessment Dashboard */}
+              <form onSubmit={handleRiskSubmit} className="bg-slate-900 text-slate-200 p-5 rounded-xl border border-slate-850 space-y-4 shadow-md">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-3.5">
+                  <div>
+                    <span className="text-[10px] text-indigo-400 font-bold block uppercase tracking-wide">Dynamic Calibration</span>
+                    <div className="text-[11px] text-slate-400 mt-0.5">
+                      Based on current dimensions, recommended state is: <span className={`font-black ${computedRating === 'High' ? 'text-rose-400' : computedRating === 'Medium' ? 'text-amber-400' : 'text-emerald-400'}`}>{computedRating} Risk</span>
+                    </div>
+                  </div>
+                  {evalRiskRating !== computedRating && (
+                    <button
+                      type="button"
+                      onClick={() => setEvalRiskRating(computedRating)}
+                      className="px-3 py-1.5 bg-indigo-600/35 hover:bg-indigo-600/50 border border-indigo-500/30 text-indigo-300 font-bold text-[10.5px] rounded-lg cursor-pointer transition-all uppercase tracking-wide"
+                    >
+                      Sync proposed to {computedRating}
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Select final rating */}
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-300 text-[11px] block uppercase tracking-wide">Proposed Overall Risk Level</label>
+                    <div className="flex gap-2.5 pt-1">
+                      {['Low', 'Medium', 'High'].map(level => {
+                        const isChecked = evalRiskRating === level;
+                        const activeBg = level === 'High' ? 'bg-rose-500 text-white border-rose-500' : level === 'Medium' ? 'bg-amber-500 text-slate-950 border-amber-500' : 'bg-emerald-500 text-white border-emerald-500';
+                        return (
+                          <label
+                            key={level}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 border rounded-xl text-center font-black cursor-pointer transition-all select-none text-xs border-slate-800 bg-slate-950/40 text-slate-400 ${isChecked ? activeBg : 'hover:bg-slate-800'}`}
+                          >
+                            <input
+                              type="radio"
+                              name="evalRisk"
+                              value={level}
+                              checked={isChecked}
+                              onChange={() => setEvalRiskRating(level as any)}
+                              className="hidden"
+                            />
+                            {level} Risk
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Justification note */}
+                  <div className="space-y-1.5">
+                    <label htmlFor="risk_justification_input" className="font-bold text-slate-300 text-[11px] block uppercase tracking-wide">
+                      Re-Evaluation Justification <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      id="risk_justification_input"
+                      type="text"
+                      required
+                      placeholder="e.g., Supplier cleared IT security audit, NDA signed, or financial review complete."
+                      value={evalReason}
+                      onChange={(e) => setEvalReason(e.target.value)}
+                      className="w-full text-xs p-2.5 border border-slate-850 rounded-xl bg-slate-950 focus:ring-1 focus:ring-indigo-500 outline-none text-slate-200 placeholder-slate-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2">
+                  <div>
+                    {showSuccessMsg ? (
+                      <span className="text-emerald-400 font-extrabold text-[11px] flex items-center gap-1.5 animate-bounce">
+                        ✓ Risk Rating successfully calibrated & logged!
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-500 font-medium italic">All re-evaluation actions are logged in the corporate audit logs.</span>
+                    )}
+                  </div>
+                  <button
+                    id="submit_risk_reeval_btn"
+                    type="submit"
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-[0.98]"
+                  >
+                    <ShieldAlert className="w-4 h-4 shrink-0" />
+                    Commit Risk Re-Evaluation
+                  </button>
+                </div>
+              </form>
+
+              {/* Historical audit info or helpful reference */}
+              <div className="bg-rose-500/5 border border-rose-500/10 p-4 rounded-xl flex gap-3 text-xs text-slate-600">
+                <AlertOctagon className="w-5 h-5 text-rose-500 shrink-0 self-start" />
+                <div className="space-y-1 flex-1">
+                  <span className="font-black text-slate-700 block uppercase text-[10px]">Governance Policy Protocol</span>
+                  <p className="font-semibold leading-relaxed">
+                    Always inspect physical compliance track records, business continuity plans, and tax clearance certifications before degrading a partner from medium or high risk to low risk.
+                  </p>
+                </div>
               </div>
             </div>
           )}

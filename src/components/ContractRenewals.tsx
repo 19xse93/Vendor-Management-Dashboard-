@@ -12,7 +12,11 @@ import {
   Bookmark, 
   Check,
   CheckCircle,
-  TrendingDown
+  TrendingDown,
+  Megaphone,
+  Monitor,
+  Car,
+  Sparkles
 } from 'lucide-react';
 
 interface ContractRenewalsProps {
@@ -53,6 +57,120 @@ export default function ContractRenewals({
   const [newAutoRenew, setNewAutoRenew] = useState(false);
   const [newNoticeDays, setNewNoticeDays] = useState(30);
   const [newKeyTerms, setNewKeyTerms] = useState('');
+
+  // States for dynamic template configuration choices
+  const [templateSiteDuration, setTemplateSiteDuration] = useState<'3_months' | '12_months' | '45_days'>('3_months');
+  
+  const [templateITEquipment, setTemplateITEquipment] = useState<'laptops' | 'printers_copiers' | 'workstations_bundle'>('laptops');
+  const [templateITFinance, setTemplateITFinance] = useState<'bank_backed' | 'direct_rent'>('bank_backed');
+  const [templateITDuration, setTemplateITDuration] = useState<'12_months' | '24_months'>('24_months');
+
+  const [templateVehicleType, setTemplateVehicleType] = useState<'trucks' | 'cars' | 'delivery_vans'>('trucks');
+  const [templateVehicleDuration, setTemplateVehicleDuration] = useState<'months_3' | 'months_12' | 'weeks_2'>('months_3');
+
+  // Loaders for preset configurations
+  const loadSiteRentalTemplate = () => {
+    let days = 90;
+    let label = '3 Months standard lease';
+    if (templateSiteDuration === '12_months') {
+      days = 365;
+      label = '12 Months annual OOH lease';
+    } else if (templateSiteDuration === '45_days') {
+      days = 45;
+      label = '45 Days promotional campaign';
+    }
+
+    const start = new Date(newStartDate);
+    const endString = new Date(start.getTime() + days * 24 * 3600 * 1000).toISOString().split('T')[0];
+
+    setNewTitle(`Out-of-Home (OOH) Site Billboard Advertisement Space Lease (${label})`);
+    setNewBU('MEDIA');
+    setNewVal(24); // Standard SLA response: 24 hours
+    setNewNoticeDays(30);
+    setNewEndDate(endString);
+    setNewAutoRenew(templateSiteDuration !== '45_days');
+    
+    setNewKeyTerms([
+      `Exclusive site access for placement of out-of-home advertisements for a specified term of ${label}.`,
+      `SLA Illumination & Visibility: Guaranteed monthly average of 98.5% illumination uptime for backlit / digital displays.`,
+      `A reciprocal pro-rata discount on rent applies to any unplanned display blackout lasting in excess of 24 consecutive hours.`,
+      `The leasing partner certifies absolute compliance with municipal outdoor advertising tax codes under strict local regulations.`,
+      `Contractor carries full risk of physical damage during weather disturbances, with rapid refit scheduled within 48 hours.`
+    ].join('\n'));
+  };
+
+  const loadITLeaseTemplate = () => {
+    let label = 'Enterprise Workstation Laptops';
+    if (templateITEquipment === 'printers_copiers') {
+      label = 'Enterprise Printers & Copiers';
+    } else if (templateITEquipment === 'workstations_bundle') {
+      label = 'Full IT Laptop & Printer Hardware Fleet Bundle';
+    }
+
+    const financeLabel = templateITFinance === 'bank_backed' ? 'with Bank Leasing/Financing' : 'Direct Service Contract';
+    const months = templateITDuration === '12_months' ? 12 : 24;
+    const days = months * 30;
+
+    const start = new Date(newStartDate);
+    const endString = new Date(start.getTime() + days * 24 * 3600 * 1000).toISOString().split('T')[0];
+
+    setNewTitle(`${label} Rental & Leasing (${financeLabel} - ${months} Mo.)`);
+    setNewBU('HOLDINGS');
+    setNewVal(8); // SLA Response Limit: 8 hours critical repair
+    setNewNoticeDays(60);
+    setNewEndDate(endString);
+    setNewAutoRenew(true);
+
+    const checkBankText = templateITFinance === 'bank_backed' 
+      ? 'Finance parameters managed and underwritten securely through bank-backed capital lease channels.' 
+      : 'Bilateral rental agreement with direct vendor service SLA support.';
+
+    setNewKeyTerms([
+      `Multi-item leasing of high-performance ${label.toLowerCase()} configured to corporate standards.`,
+      `Rapid Replacement SLA: Faulty unit diagnostics completed with hot-swap replacement shipped to site within 8 business hours.`,
+      `Security Protocol: Storage media, firmware, and logs undergo physical/digital NIST 800-88 sanitization prior to return.`,
+      `${checkBankText}`,
+      `Routine preventive maintenance, printer cartridge replenishment, and diagnostic scans conducted on a monthly cycle.`,
+      `Comprehensive all-risk equipment insurance protecting against accidental drop spillage and grid electrical surge failures.`
+    ].join('\n'));
+  };
+
+  const loadVehicleRentalTemplate = () => {
+    let label = 'Commercial Delivery Trucks';
+    if (templateVehicleType === 'cars') {
+      label = 'Client Executive Cars';
+    } else if (templateVehicleType === 'delivery_vans') {
+      label = 'Courier Delivery Vans';
+    }
+
+    let days = 90;
+    let durLabel = '3 Months Logistics Service';
+    if (templateVehicleDuration === 'months_12') {
+      days = 365;
+      durLabel = '12 Months Annual Rental';
+    } else if (templateVehicleDuration === 'weeks_2') {
+      days = 14;
+      durLabel = '2 Weeks Express Courier Run';
+    }
+
+    const start = new Date(newStartDate);
+    const endString = new Date(start.getTime() + days * 24 * 3600 * 1000).toISOString().split('T')[0];
+
+    setNewTitle(`Self-Drive Vehicle Fleet Leasing - ${label} without Driver (${durLabel})`);
+    setNewBU('TRADING');
+    setNewVal(4); // SLA Response Limit: 4 hours roadside backup
+    setNewNoticeDays(15);
+    setNewEndDate(endString);
+    setNewAutoRenew(false);
+
+    setNewKeyTerms([
+      `Vehicle lease of fully registered utility vehicles and service ${label.toLowerCase()} without driver for ${durLabel}.`,
+      `Roadside & Towing SLA: Provision of parallel backup vehicle on-site within 4 hours if mechanical failure locks up the primary carriage.`,
+      `Preventative Maintenance Checklist: Supplier bears the full burden and expense of monthly lube inspections and tire updates.`,
+      `Insurance Provision: Third-party damage protection included; host tenant liability is capped at a maximum surcharge of PHP 10,000.`,
+      `Supplier warrants vehicles are delivered empty, completely roadworthy, sanitized, with active emission certifications.`
+    ].join('\n'));
+  };
 
   // Auto-fill form values when triggered from parent (Quick Renew)
   useEffect(() => {
@@ -279,6 +397,173 @@ export default function ContractRenewals({
             >
               Cancel Setup
             </button>
+          </div>
+
+          {/* QUICK TEMPLATE FACTORY PRESETS */}
+          <div className="bg-gradient-to-tr from-slate-50 to-indigo-50/20 border border-indigo-100 p-5 rounded-2xl space-y-4">
+            <span className="font-extrabold text-[11px] text-indigo-950 block uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-indigo-505 text-indigo-500 animate-pulse" />
+              SLA Template Presets Quick-Configurator
+            </span>
+            <p className="text-slate-500 text-[11.5px] leading-relaxed">
+              Select or configure an SLA template from the specific industry categories requested. Clicking **"Load Preset"** will automatically calculate appropriate start/end dates, assign the optimal business unit, set SLA response limits, and establish ready-to-lodge contract terms.
+            </p>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Template Card 1: Site Rental */}
+              <div className="bg-white border border-slate-150 p-4 rounded-xl flex flex-col justify-between space-y-3 shadow-xs hover:border-slate-200 transition-all">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-rose-50 text-rose-500 rounded-lg">
+                      <Megaphone className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-xs">1. Site Rental (OOH Ads)</h4>
+                      <span className="text-[10px] text-slate-400 block font-medium">Out-of-Home Billboard space</span>
+                    </div>
+                  </div>
+                  
+                  {/* Site specific configuration */}
+                  <div className="space-y-1.5 pt-1.5">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 block">SLA Duration Preference</label>
+                    <select
+                      value={templateSiteDuration}
+                      onChange={(e) => setTemplateSiteDuration(e.target.value as any)}
+                      className="w-full p-2 border border-slate-200 rounded-lg text-xs bg-slate-50 outline-none"
+                    >
+                      <option value="3_months">3 Months (Standard OOH campaign)</option>
+                      <option value="12_months">12 Months (Annual Billboard Lease)</option>
+                      <option value="45_days">45 Days (Short-term Promo Run)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={loadSiteRentalTemplate}
+                  className="w-full py-2 bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white border border-rose-100 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  Load OOH Lease Preset
+                </button>
+              </div>
+
+              {/* Template Card 2: IT Equipment */}
+              <div className="bg-white border border-slate-150 p-4 rounded-xl flex flex-col justify-between space-y-2.5 shadow-xs hover:border-slate-200 transition-all">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-blue-50 text-blue-500 rounded-lg">
+                      <Monitor className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-xs">2. IT Equipment Rentals</h4>
+                      <span className="text-[10px] text-slate-400 block font-medium">Laptops, Printers & Workstations</span>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="space-y-1">
+                      <label className="text-[9px] uppercase font-bold text-slate-500 block">Equipment Item</label>
+                      <select
+                        value={templateITEquipment}
+                        onChange={(e) => setTemplateITEquipment(e.target.value as any)}
+                        className="w-full p-1.5 border border-slate-200 rounded-lg text-xs bg-slate-50 outline-none"
+                      >
+                        <option value="laptops">Laptops</option>
+                        <option value="printers_copiers">Printers</option>
+                        <option value="workstations_bundle">All-in-One Bundle</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] uppercase font-bold text-slate-500 block">Financing</label>
+                      <select
+                        value={templateITFinance}
+                        onChange={(e) => setTemplateITFinance(e.target.value as any)}
+                        className="w-full p-1.5 border border-slate-200 rounded-lg text-[10.5px] bg-slate-50 outline-none"
+                      >
+                        <option value="bank_backed">Thru Banks</option>
+                        <option value="direct_rent">Direct Rent</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 block">Contract Term Length</label>
+                    <select
+                      value={templateITDuration}
+                      onChange={(e) => setTemplateITDuration(e.target.value as any)}
+                      className="w-full p-2 border border-slate-200 rounded-lg text-xs bg-slate-50 outline-none"
+                    >
+                      <option value="24_months">24 Months lease (2 Years)</option>
+                      <option value="12_months">12 Months (1 Year run)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={loadITLeaseTemplate}
+                  className="w-full py-2 bg-blue-50 hover:bg-blue-500 text-blue-600 hover:text-white border border-blue-100 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  Load IT Lease Preset
+                </button>
+              </div>
+
+              {/* Template Card 3: Vehicles */}
+              <div className="bg-white border border-slate-150 p-4 rounded-xl flex flex-col justify-between space-y-3 shadow-xs hover:border-slate-200 transition-all">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-emerald-50 text-emerald-500 rounded-lg">
+                      <Car className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-xs">3. Car & Truck Vehicles</h4>
+                      <span className="text-[10px] text-slate-400 block font-medium">Self-Drive logistics leasing</span>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="space-y-1">
+                      <label className="text-[9px] uppercase font-bold text-slate-500 block">Vehicle Category</label>
+                      <select
+                        value={templateVehicleType}
+                        onChange={(e) => setTemplateVehicleType(e.target.value as any)}
+                        className="w-full p-1.5 border border-slate-200 rounded-lg text-xs bg-slate-50 outline-none"
+                      >
+                        <option value="trucks">Cargo Trucks</option>
+                        <option value="cars">Executive Cars</option>
+                        <option value="delivery_vans">Delivery Vans</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] uppercase font-bold text-slate-500 block">Duration Unit</label>
+                      <select
+                        value={templateVehicleDuration}
+                        onChange={(e) => setTemplateVehicleDuration(e.target.value as any)}
+                        className="w-full p-1.5 border border-slate-200 rounded-lg text-[10.5px] bg-slate-50 outline-none"
+                      >
+                        <option value="months_3">Months (3 Mo)</option>
+                        <option value="months_12">Months (12 Mo)</option>
+                        <option value="weeks_2">Weeks (2 Wk)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={loadVehicleRentalTemplate}
+                  className="w-full py-2 bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white border border-emerald-100 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 animate-pulse-slow"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  Load Vehicle SLA
+                </button>
+              </div>
+
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">

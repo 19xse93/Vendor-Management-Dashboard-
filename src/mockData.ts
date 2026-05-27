@@ -649,6 +649,18 @@ export const INITIAL_COMPANY_DOCUMENTS: CompanyDocument[] = [
     uploadedAt: '2026-05-24T16:40:00Z',
     expiryDate: '2026-09-30',
     remarks: 'Q1 2026 remittance clearance certificate uploaded. Awaiting compliance audit verification.'
+  },
+  {
+    id: 'DOC-106',
+    documentType: 'BIR Tax Clearance Certificate',
+    subsidiary: 'HOLDINGS',
+    fileName: 'BIR_Tax_Clearance_Holdings_2026.pdf',
+    fileSize: '1.4 MB',
+    status: 'valid',
+    uploadedBy: 'ana.santos@elev8.com',
+    uploadedAt: '2026-04-15T09:00:00Z',
+    expiryDate: '2026-06-15',
+    remarks: 'Annual Regional BIR Tax Clearance for Holdings Inc. Scheduled to expire within 30 days. Renewal in progress.'
   }
 ];
 

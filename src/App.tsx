@@ -10,14 +10,27 @@ import {
   saveCompliance, 
   getStoredLogs, 
   saveLogs, 
-  appendLog 
+  appendLog,
+  getStoredCompanyDocuments,
+  saveCompanyDocuments
 } from './mockData';
-import { Vendor, Contract, PerformanceReview, ComplianceCheck, LogEntry, BusinessUnit, BUSINESS_UNITS } from './types';
+import { Vendor, Contract, PerformanceReview, ComplianceCheck, LogEntry, BusinessUnit, BUSINESS_UNITS, CompanyDocument } from './types';
 import Dashboard from './components/Dashboard';
 import VendorList from './components/VendorList';
 import ContractRenewals from './components/ContractRenewals';
 import PerformanceTracker from './components/PerformanceTracker';
 import ComplianceCenter from './components/ComplianceCenter';
+import CompanyDocuments from './components/CompanyDocuments';
+import Login from './components/Login';
+import { 
+  isFirebaseConfigured, 
+  saveUserProfile, 
+  fetchCompanyDocuments, 
+  uploadCompanyDocumentToFirestore, 
+  deleteCompanyDocumentFromFirestore, 
+  fetchComplianceChecks, 
+  saveComplianceCheckToFirestore 
+} from './firebase';
 import { 
   Building2, 
   LayoutDashboard, 
@@ -31,11 +44,39 @@ import {
   BellRing,
   Award,
   CircleCheck,
-  Briefcase
+  FolderOpen,
+  Shield,
+  LogOut,
+  Lock
 } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+
+  // Authenticated User Session state
+  const [user, setUser] = useState<{
+    email: string;
+    role: 'ADMIN' | 'COMPLIANCE_OFFICER' | 'GUEST_AUDITOR';
+    fullName: string;
+    subsidiaryAccess: 'ALL' | 'MEDIA' | 'HOLDINGS' | 'TRADING';
+  } | null>(() => {
+    const stored = localStorage.getItem('elev8_vms_user');
+    return stored ? JSON.parse(stored) : null;
+  });
+
+  const handleLogin = (u: any) => {
+    setUser(u);
+    localStorage.setItem('elev8_vms_user', JSON.stringify(u));
+    if (isFirebaseConfigured()) {
+      const safeId = u.email.replace(/[^a-zA-Z0-9_\-]/g, '_');
+      saveUserProfile(safeId, u.email, u.role, u.fullName);
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('elev8_vms_user');
+  };
   
   // Real-time states
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -43,6 +84,7 @@ export default function App() {
   const [reviews, setReviews] = useState<PerformanceReview[]>([]);
   const [compliance, setCompliance] = useState<ComplianceCheck[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [companyDocuments, setCompanyDocuments] = useState<CompanyDocument[]>([]);
   
   // Current UTC time state
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -55,8 +97,36 @@ export default function App() {
     setVendors(getStoredVendors());
     setContracts(getStoredContracts());
     setReviews(getStoredReviews());
-    setCompliance(getStoredCompliance());
     setLogs(getStoredLogs());
+
+    if (isFirebaseConfigured()) {
+      fetchCompanyDocuments().then(docs => {
+        if (docs && docs.length > 0) {
+          setCompanyDocuments(docs);
+        } else {
+          const initialDocs = getStoredCompanyDocuments();
+          setCompanyDocuments(initialDocs);
+          initialDocs.forEach(d => uploadCompanyDocumentToFirestore(d));
+        }
+      }).catch(() => {
+        setCompanyDocuments(getStoredCompanyDocuments());
+      });
+
+      fetchComplianceChecks().then(checks => {
+        if (checks && checks.length > 0) {
+          setCompliance(checks);
+        } else {
+          const initialChecks = getStoredCompliance();
+          setCompliance(initialChecks);
+          initialChecks.forEach(c => saveComplianceCheckToFirestore(c));
+        }
+      }).catch(() => {
+        setCompliance(getStoredCompliance());
+      });
+    } else {
+      setCompliance(getStoredCompliance());
+      setCompanyDocuments(getStoredCompanyDocuments());
+    }
 
     // Sync clock on 2026 UTC period
     const updateClock = () => {
@@ -133,6 +203,10 @@ export default function App() {
     const updatedComp = [...compliance, ...mockChecks];
     handleSetCompliance(updatedComp);
 
+    if (isFirebaseConfigured()) {
+      mockChecks.forEach(c => saveComplianceCheckToFirestore(c));
+    }
+
     appendLog('Vendor Portfolio Published', `Registered ${vendor.name} under ${vendor.category}`, 'vendor');
     setLogs(getStoredLogs());
   };
@@ -147,6 +221,30 @@ export default function App() {
 
     const vendorName = vendors.find(v => v.id === vendorId)?.name || 'Unknown';
     appendLog('Vendor Status Revised', `Adjusted ${vendorName} status to ${status.replace('_', ' ')}`, 'vendor');
+    setLogs(getStoredLogs());
+  };
+
+  // 2b. Update Vendor Risk Evaluation & Factors
+  const handleUpdateVendorRisk = (
+    vendorId: string, 
+    riskRating: Vendor['riskRating'], 
+    riskFactors: Record<string, 'Low' | 'Medium' | 'High'>,
+    reason: string
+  ) => {
+    const updated = vendors.map(v => {
+      if (v.id === vendorId) {
+        return { 
+          ...v, 
+          riskRating, 
+          riskFactors 
+        };
+      }
+      return v;
+    });
+    handleSetVendors(updated);
+
+    const vendorName = vendors.find(v => v.id === vendorId)?.name || 'Unknown';
+    appendLog('Vendor Risk Re-evaluated', `Updated ${vendorName} Risk to ${riskRating} level. Reason: ${reason}`, 'vendor');
     setLogs(getStoredLogs());
   };
 
@@ -274,7 +372,7 @@ export default function App() {
 
     const updated = compliance.map(c => {
       if (c.id === checkId) {
-        return {
+        const item = {
           ...c,
           status,
           remarks: remarks || c.remarks,
@@ -283,6 +381,10 @@ export default function App() {
           fileSize: fileSize !== undefined ? fileSize : c.fileSize,
           updatedAt: new Date().toISOString()
         };
+        if (isFirebaseConfigured()) {
+          saveComplianceCheckToFirestore(item);
+        }
+        return item;
       }
       return c;
     });
@@ -335,6 +437,10 @@ export default function App() {
     const updatedCompliance = [...compliance, fullCheck];
     handleSetCompliance(updatedCompliance);
 
+    if (isFirebaseConfigured()) {
+      saveComplianceCheckToFirestore(fullCheck);
+    }
+
     // Recalculate complianceScore for the vendor
     const vendorChecks = updatedCompliance.filter(c => c.vendorId === vendorId);
     const passedCount = vendorChecks.filter(c => c.status === 'passed').length;
@@ -360,6 +466,56 @@ export default function App() {
     setLogs(getStoredLogs());
   };
 
+  // 8. Company Documents CRUD
+  const handleAddCompanyDocument = (newDoc: Omit<CompanyDocument, 'id' | 'uploadedAt'>) => {
+    const doc: CompanyDocument = {
+      ...newDoc,
+      id: `DOC-${String(companyDocuments.length + 101)}`,
+      uploadedAt: new Date().toISOString()
+    };
+    const updated = [doc, ...companyDocuments];
+    setCompanyDocuments(updated);
+    saveCompanyDocuments(updated);
+    if (isFirebaseConfigured()) {
+      uploadCompanyDocumentToFirestore(doc);
+    }
+    appendLog('Upload Document', `Uploaded corporate credential "${doc.documentType}" for subsidiary ${doc.subsidiary}.`, 'compliance');
+    setLogs(getStoredLogs());
+  };
+
+  const handleDeleteCompanyDocument = (docId: string) => {
+    const doc = companyDocuments.find(d => d.id === docId);
+    if (!doc) return;
+    const updated = companyDocuments.filter(d => d.id !== docId);
+    setCompanyDocuments(updated);
+    saveCompanyDocuments(updated);
+    if (isFirebaseConfigured()) {
+      deleteCompanyDocumentFromFirestore(docId);
+    }
+    appendLog('Delete Document', `Deleted company document "${doc.documentType}" (ID: ${docId}).`, 'compliance');
+    setLogs(getStoredLogs());
+  };
+
+  const handleUpdateCompanyDocumentStatus = (docId: string, status: CompanyDocument['status']) => {
+    const updated = companyDocuments.map(d => {
+      if (d.id === docId) {
+        const item = { ...d, status };
+        if (isFirebaseConfigured()) {
+          uploadCompanyDocumentToFirestore(item);
+        }
+        return item;
+      }
+      return d;
+    });
+    setCompanyDocuments(updated);
+    saveCompanyDocuments(updated);
+    const doc = companyDocuments.find(d => d.id === docId);
+    if (doc) {
+      appendLog('Status Update', `Updated company document "${doc.documentType}" (ID: ${docId}) status to ${status}.`, 'compliance');
+      setLogs(getStoredLogs());
+    }
+  };
+
   // --- SYSTEM STATS IN HEADER ---
   const activeAgreementsCount = contracts.filter(c => c.status === 'active' || c.status === 'expiring_soon').length;
   const expiredContractsCount = contracts.filter(c => c.status === 'expired').length;
@@ -374,6 +530,10 @@ export default function App() {
       maximumFractionDigits: 0
     }).format(val);
   };
+
+  if (!user) {
+    return <Login onLoginSuccess={handleLogin} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans" id="app_root_frame">
@@ -395,14 +555,40 @@ export default function App() {
 
         {/* Aggregate ribbon details */}
         <div className="flex items-center flex-wrap gap-5 text-xs text-slate-300 font-semibold">
-          <div className="flex items-center gap-1.5 border-r border-slate-800 pr-5 shrink-0">
-            <Briefcase className="w-4 h-4 text-emerald-400" />
-            <div>
-              <span className="text-slate-400 text-[9px] block uppercase font-bold">Total Portfolio Value</span>
-              <span className="text-white font-black">{formatCurrency(totalSpendSum)}</span>
+          {/* User auth ribbon status */}
+          <div className="flex items-center gap-3 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700/80" id="user_ribbon_status">
+            <div className="p-1 bg-indigo-505/20 text-indigo-400 rounded-lg">
+              <Shield className="w-4 h-4" />
             </div>
+            <div className="text-left font-sans">
+              <div className="text-white font-extrabold text-[11px] leading-tight truncate max-w-[130px]" title={user.fullName}>
+                {user.fullName}
+              </div>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className={`text-[8.5px] uppercase font-black px-1.5 py-0.2 rounded-sm ${
+                  user.role === 'ADMIN' 
+                    ? 'bg-amber-400/20 text-amber-300' 
+                    : user.role === 'COMPLIANCE_OFFICER' 
+                    ? 'bg-emerald-400/20 text-emerald-300' 
+                    : 'bg-slate-500/20 text-slate-300'
+                }`}>
+                  {user.role.replace('_', ' ')}
+                </span>
+                <span className="text-[8.5px] bg-slate-900 text-slate-400 px-1 font-bold">
+                  {user.subsidiaryAccess}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="p-1 text-[11px] text-slate-400 hover:text-rose-400 hover:bg-slate-900/50 rounded-lg transition-colors cursor-pointer ml-1"
+              title="Logout Session"
+              id="logout_btn"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
-          
+
           <div className="flex items-center gap-1.5 border-r border-slate-800 pr-5 shrink-0 col-span-2">
             <BellRing className="w-4 h-4 text-rose-400 animate-pulse-slow" />
             <div>
@@ -511,6 +697,23 @@ export default function App() {
                 <span>Credentials audits</span>
               </button>
 
+              {/* Company Documents */}
+              <button
+                id="tab_nav_company_docs"
+                onClick={() => {
+                  setActiveTab('company_documents');
+                  setSelectedRenewalContract(null);
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold leading-none cursor-pointer border transition-all ${
+                  activeTab === 'company_documents'
+                    ? 'bg-slate-900 border-slate-900 text-white shadow-xs'
+                    : 'bg-white border-transparent text-slate-600 hover:text-slate-950 hover:bg-slate-50'
+                }`}
+              >
+                <FolderOpen className="w-4.5 h-4.5" />
+                <span>Company Documents</span>
+              </button>
+
               {/* System Audit trace log */}
               <button
                 id="tab_nav_logs"
@@ -566,6 +769,7 @@ export default function App() {
               compliance={compliance}
               onAddVendor={handleAddVendor}
               onUpdateVendorStatus={handleUpdateVendorStatus}
+              onUpdateVendorRisk={handleUpdateVendorRisk}
               onRenewContract={(contract) => {
                 setSelectedRenewalContract(contract);
                 setActiveTab('renewals');
@@ -601,6 +805,19 @@ export default function App() {
               compliance={compliance}
               onUpdateCompliance={handleUpdateCompliance}
               onAddComplianceCheck={handleAddComplianceCheck}
+              userRole={user.role}
+              userEmail={user.email}
+            />
+          )}
+
+          {activeTab === 'company_documents' && (
+            <CompanyDocuments
+              documents={companyDocuments}
+              onAddDocument={handleAddCompanyDocument}
+              onDeleteDocument={handleDeleteCompanyDocument}
+              onUpdateDocumentStatus={handleUpdateCompanyDocumentStatus}
+              userRole={user.role}
+              userEmail={user.email}
             />
           )}
 

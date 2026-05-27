@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { CompanyDocument, BusinessUnit, BUSINESS_UNITS } from '../types';
 import { 
   FileText, 
@@ -14,7 +14,8 @@ import {
   Search,
   Filter,
   CheckCircle,
-  FolderOpen
+  FolderOpen,
+  AlertCircle
 } from 'lucide-react';
 
 interface CompanyDocumentsProps {
@@ -22,14 +23,37 @@ interface CompanyDocumentsProps {
   onAddDocument: (doc: Omit<CompanyDocument, 'id' | 'uploadedAt'>) => void;
   onDeleteDocument: (docId: string) => void;
   onUpdateDocumentStatus: (docId: string, status: CompanyDocument['status']) => void;
+  userRole?: string;
+  userEmail?: string;
 }
 
 export default function CompanyDocuments({
   documents,
   onAddDocument,
   onDeleteDocument,
-  onUpdateDocumentStatus
+  onUpdateDocumentStatus,
+  userRole = 'ADMIN',
+  userEmail = 'admin@elev8.com'
 }: CompanyDocumentsProps) {
+  const getDaysUntilExpiry = (expiryDateStr: string) => {
+    if (!expiryDateStr || expiryDateStr === '2500-12-31') return Infinity;
+    const expiry = new Date(expiryDateStr);
+    const today = new Date('2026-05-27T08:01:30Z');
+    const diffTime = expiry.getTime() - today.getTime();
+    if (isNaN(diffTime)) return Infinity;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  // State modifiers & toast alerts mimicking premium in-iframe notification gates
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4000);
+  };
+
   // Navigation & Filter options
   const [searchTerm, setSearchTerm] = useState('');
   const [buFilter, setBuFilter] = useState<BusinessUnit | 'ALL'>('ALL');
@@ -41,9 +65,14 @@ export default function CompanyDocuments({
   const [customType, setCustomType] = useState('');
   const [selectedBU, setSelectedBU] = useState<BusinessUnit | 'ALL'>('ALL');
   const [expiryDate, setExpiryDate] = useState('2500-12-31');
-  const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string } | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string; data?: string } | null>(null);
   const [remarks, setRemarks] = useState('');
-  const [reviewerName, setReviewerName] = useState('admin@elev8.com');
+  const [reviewerName, setReviewerName] = useState(userEmail);
+
+  // Synchronize reviewer info with auth
+  useEffect(() => {
+    setReviewerName(userEmail);
+  }, [userEmail]);
 
   // Interactive Drag & Drop Simulation States
   const [isDragging, setIsDragging] = useState(false);
@@ -52,6 +81,25 @@ export default function CompanyDocuments({
 
   // Preview Modal States
   const [previewDoc, setPreviewDoc] = useState<CompanyDocument | null>(null);
+
+  // Status attempt security wrapper
+  const handleStatusChangeAttempt = (docId: string, val: string) => {
+    if (userRole === 'GUEST_AUDITOR') {
+      showToast('Action Denied: External Guest Auditors hold read-only clearance.');
+      return;
+    }
+    onUpdateDocumentStatus(docId, val as any);
+    showToast('Corporate accreditation status updated successfully.');
+  };
+
+  const handleDeleteAttempt = (docId: string) => {
+    if (userRole === 'GUEST_AUDITOR') {
+      showToast('Action Denied: External Guest Auditors hold read-only clearance.');
+      return;
+    }
+    onDeleteDocument(docId);
+    showToast('Corporate document record purged from registry.');
+  };
 
   // Standard preset document options
   const STANDARD_DOC_OPTIONS = [
@@ -77,47 +125,85 @@ export default function CompanyDocuments({
   };
 
   const triggerFileSelect = () => {
+    if (userRole === 'GUEST_AUDITOR') {
+      showToast('Action Denied: External Guest Auditors hold read-only clearance.');
+      return;
+    }
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
   };
 
-  const simulateProgress = (fileName: string, fileSizeStr: string) => {
-    setUploadProgress(10);
+  const processFile = (file: File) => {
+    const reader = new FileReader();
+    setUploadProgress(15);
     const interval = setInterval(() => {
-      setUploadProgress((prev) => {
+      setUploadProgress(prev => {
         if (prev === null) return null;
-        if (prev >= 100) {
+        if (prev >= 80) {
           clearInterval(interval);
-          setUploadedFile({ name: fileName, size: fileSizeStr });
-          return null;
+          return 80;
         }
         return prev + 15;
       });
-    }, 200);
+    }, 100);
+
+    reader.onload = (event) => {
+      clearInterval(interval);
+      const base64Data = event.target?.result as string;
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      
+      setUploadProgress(100);
+      setTimeout(() => {
+        setUploadedFile({
+          name: file.name,
+          size: `${sizeMB} MB`,
+          data: base64Data
+        });
+        setUploadProgress(null);
+        showToast('Accreditation attachment compiled and locked successfully.');
+      }, 250);
+    };
+
+    reader.onerror = () => {
+      clearInterval(interval);
+      setUploadProgress(null);
+      showToast('Failed to compile attachment raw files.');
+    };
+
+    reader.readAsDataURL(file);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    if (userRole === 'GUEST_AUDITOR') {
+      showToast('Action Denied: External Guest Auditors hold read-only clearance.');
+      return;
+    }
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-      simulateProgress(file.name, `${sizeMB} MB`);
+      processFile(e.dataTransfer.files[0]);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (userRole === 'GUEST_AUDITOR') {
+      showToast('Action Denied: External Guest Auditors hold read-only clearance.');
+      return;
+    }
     if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-      simulateProgress(file.name, `${sizeMB} MB`);
+      processFile(e.target.files[0]);
     }
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (userRole === 'GUEST_AUDITOR') {
+      showToast('Action Denied: External Guest Auditors hold read-only clearance.');
+      return;
+    }
+
     const finalDocType = docType === 'Others (Custom Registration Name)' 
       ? (customType || 'Custom Corporate Certification') 
       : docType;
@@ -130,10 +216,11 @@ export default function CompanyDocuments({
       subsidiary: selectedBU,
       fileName,
       fileSize,
-      status: 'valid',
+      status: 'pending_verification', // New uploads default to audit queue
       expiryDate,
       uploadedBy: reviewerName || 'current_user@elev8.com',
-      remarks: remarks || `Corporate Certificate for Elev8 ${selectedBU === 'ALL' ? 'Group' : selectedBU}. Verified by Internal Audit.`
+      remarks: remarks || `Corporate Certificate for Elev8 ${selectedBU === 'ALL' ? 'Group' : selectedBU}. Verified by Internal Audit.`,
+      fileData: uploadedFile?.data
     });
 
     // Reset Form
@@ -144,6 +231,7 @@ export default function CompanyDocuments({
     setUploadedFile(null);
     setRemarks('');
     setShowUploadForm(false);
+    showToast('Corporate accrediting document added securely.');
   };
 
   // Filter Company Documents
@@ -160,6 +248,14 @@ export default function CompanyDocuments({
 
   return (
     <div className="space-y-6">
+      
+      {/* Toast Alert Gate */}
+      {toastMessage && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-700 font-bold flex items-center gap-2 animate-in fade-in duration-200" id="documents_auth_toast">
+          <AlertCircle className="w-4.5 h-4.5 text-rose-500 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
       
       {/* Title block */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
@@ -463,12 +559,19 @@ export default function CompanyDocuments({
             const buDetails = !isSubGroup ? BUSINESS_UNITS[doc.subsidiary] : null;
             const isExpired = doc.status === 'expired' || doc.status === 'failed_audit';
             const isPending = doc.status === 'pending_verification';
+            
+            const daysLeft = getDaysUntilExpiry(doc.expiryDate);
+            const isExpiringSoon = daysLeft > 0 && daysLeft <= 30;
 
             return (
               <div 
                 id={`company_doc_card_${doc.id}`}
                 key={doc.id}
-                className="bg-white rounded-2xl border border-slate-150 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                className={`rounded-2xl border p-5 shadow-xs transition-all flex flex-col justify-between ${
+                  isExpiringSoon 
+                    ? 'border-amber-400 bg-gradient-to-br from-amber-50/20 via-white to-white ring-1 ring-amber-300/45 shadow-sm' 
+                    : 'bg-white border-slate-150 hover:shadow-md'
+                }`}
               >
                 <div className="space-y-3">
                   {/* Category Ribbon */}
@@ -488,7 +591,7 @@ export default function CompanyDocuments({
                       <select
                         id={`company_doc_status_modifier_${doc.id}`}
                         value={doc.status}
-                        onChange={(e) => onUpdateDocumentStatus(doc.id, e.target.value as any)}
+                        onChange={(e) => handleStatusChangeAttempt(doc.id, e.target.value as any)}
                         className={`text-[10px] uppercase font-extrabold focus:outline-none focus:ring-1 focus:ring-indigo-500 py-0.5 px-1.5 text-center cursor-pointer border rounded-md font-sans ${
                           doc.status === 'valid'
                             ? 'bg-emerald-50 border-emerald-100 text-emerald-800'
@@ -504,6 +607,14 @@ export default function CompanyDocuments({
                       </select>
                     </div>
                   </div>
+
+                  {/* Expiring Soon Alert Ribbon */}
+                  {isExpiringSoon && (
+                    <div className="flex items-center gap-1.5 bg-amber-500/10 text-amber-800 font-extrabold px-3 py-2 rounded-xl text-[10.5px] border border-amber-200/50">
+                      <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span>Warning: Expiring in {daysLeft} Days!</span>
+                    </div>
+                  )}
 
                   {/* Core Content */}
                   <div>
@@ -540,7 +651,8 @@ export default function CompanyDocuments({
                 <div className="mt-4 pt-3 border-t border-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[10px] text-slate-400 font-bold font-sans">
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5 text-slate-350" />
-                    <span>Expires: <span className="text-slate-600 font-bold">{doc.expiryDate}</span></span>
+                    <span>Expires: <span className={`font-bold ${isExpiringSoon ? 'text-amber-600 font-black' : 'text-slate-600'}`}>{doc.expiryDate}</span></span>
+                    {isExpiringSoon && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 inline ml-0.5" />}
                   </div>
                   <div className="flex items-center gap-2 justify-between">
                     <div>
@@ -548,7 +660,7 @@ export default function CompanyDocuments({
                     </div>
                     <button
                       id={`delete_company_doc_${doc.id}`}
-                      onClick={() => onDeleteDocument(doc.id)}
+                      onClick={() => handleDeleteAttempt(doc.id)}
                       className="text-slate-350 hover:text-rose-600 cursor-pointer p-1"
                       title="Delete Certificate Record"
                     >
@@ -651,7 +763,7 @@ export default function CompanyDocuments({
               <div className="bg-white p-3.5 rounded-xl border flex items-center justify-between text-[11px] font-medium font-sans">
                 <span className="text-slate-500 font-bold">Export complete certificate folder</span>
                 <button
-                  onClick={() => alert(`Simulated export details: Folder package ID-${previewDoc.id} downloaded successfully to local disk.`)}
+                  onClick={() => showToast(`Simulated export details: Folder package ID-${previewDoc.id} downloaded successfully to local disk.`)}
                   className="px-3.5 py-1.5 bg-indigo-600 text-white font-extrabold rounded-lg hover:bg-indigo-700 shadow-sm transition-colors text-xs"
                 >
                   Download Registered PDF folder

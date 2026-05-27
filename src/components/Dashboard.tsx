@@ -21,8 +21,7 @@ import {
   ArrowRight, 
   TrendingUp, 
   Activity, 
-  Clock,
-  FolderOpen
+  Clock
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -54,11 +53,6 @@ export default function Dashboard({
   // --- STATS CALCULATIONS ---
   const activeVendorsCount = filteredVendors.filter(v => v.status === 'active').length;
   const urgentContracts = filteredContracts.filter(c => c.status === 'expiring_soon' || c.status === 'expired');
-  
-  // Refilter company documents for stats
-  const filteredCompanyDocs = selectedBU === 'ALL'
-    ? companyDocuments
-    : companyDocuments.filter(d => d.subsidiary === 'ALL' || d.subsidiary === selectedBU);
 
   // Compliance rating: percentage of compliance check items passed or complianceScore of vendors
   const avgComplianceScore = Math.round(
@@ -159,7 +153,7 @@ export default function Dashboard({
       </div>
 
       {/* KPI GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5" id="kpi_grid_container">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" id="kpi_grid_container">
         {/* Active Vendors */}
         <div 
           id="kpi_card_vendors"
@@ -180,30 +174,6 @@ export default function Dashboard({
           </div>
           <div className="mt-4 flex items-center justify-between text-xs text-indigo-600 font-bold group-hover:translate-x-1 transition-transform">
             <span>View Vendor Directory</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </div>
-        </div>
-
-        {/* Company Registrations (REPLACES CONTRACT SPEND) */}
-        <div 
-          id="kpi_card_company_docs"
-          onClick={() => onNavigate('company_documents')}
-          className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-slate-200 transition-all cursor-pointer group"
-        >
-          <div className="flex justify-between items-start">
-            <div className="space-y-2 font-sans">
-              <span className="text-slate-400 text-[10px] font-bold tracking-wider uppercase block">Corporate Certificates</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-slate-900">{filteredCompanyDocs.length}</span>
-                <span className="text-xs text-slate-500 font-bold">Files Cleared</span>
-              </div>
-            </div>
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-              <FolderOpen className="w-5 h-5 shrink-0" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center justify-between text-xs text-emerald-600 font-bold group-hover:translate-x-1 transition-transform">
-            <span>Upload Certificates / Permits</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </div>
         </div>
@@ -374,56 +344,11 @@ export default function Dashboard({
         </div>
       </div>
 
-      {/* PARTNERSHIPS BY BU PIE Chart + CRITICAL ACTION LIST (REPLACES ANNUAL SPEND FOCUS) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans" id="spend_dashboard_section_grid">
+      {/* CORES - RECENT EXPIRED & EXPIRING CONTRACTS DESK */}
+      <div className="grid grid-cols-1 font-sans" id="spend_dashboard_section_grid">
         
-        {/* Partnership Distribution Pie Chart (Replaces Vesting Allocation Spend Pie Chart) */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 mb-1">
-              <Building2 className="w-4.5 h-4.5 text-sky-500 shrink-0" />
-              Partnerships by Subsidiary
-            </h2>
-            <p className="text-xs text-slate-500 mb-4">
-              Distribution of active corporate SLAs across Elev8 business entities
-            </p>
-          </div>
-          
-          <div className="h-44 relative flex items-center justify-center flex-1" id="partners_pie_wrapper">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Tooltip formatter={(value: any) => [`${value} Contracts`, 'Active Agreements']} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
-                <Pie
-                  data={partnershipsByBU}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={0}
-                  outerRadius={70}
-                  dataKey="value"
-                >
-                  {partnershipsByBU.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="space-y-2 mt-4" id="spend_pie_legend">
-            {partnershipsByBU.map((bu, idx) => (
-              <div className="flex items-center justify-between text-xs px-1" key={idx}>
-                <span className="flex items-center gap-2 text-slate-600 font-bold">
-                  <span className="w-2.5 h-2.5 rounded-full mt-0.5" style={{ backgroundColor: bu.color }}></span>
-                  {bu.name}
-                </span>
-                <span className="font-extrabold text-slate-800">{bu.value} Strategic SLAs</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* EXPIRING DESK - STREMLINING RENEWALS */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm lg:col-span-2 flex flex-col justify-between" id="dashboard_expiring_desk">
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm w-full flex flex-col justify-between" id="dashboard_expiring_desk">
           <div>
             <div className="flex justify-between items-center mb-1">
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">

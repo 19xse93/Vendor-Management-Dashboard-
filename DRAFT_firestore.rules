@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Catch-all safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Global verification helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Checking roles
+    function isUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    }
+
+    // Validations
+    function isValidUser(user) {
+      return user.userId == request.auth.uid 
+        && user.email is string && user.email.size() <= 128
+        && user.role in ['ADMIN', 'COMPLIANCE_OFFICER', 'GUEST_AUDITOR']
+        && user.fullName is string && user.fullName.size() <= 128;
+    }
+
+    function isValidCompanyDocument(doc) {
+      return doc.id is string && doc.id.size() <= 64 
+        && doc.documentType is string && doc.documentType.size() <= 128
+        && doc.subsidiary in ['ALL', 'MEDIA', 'HOLDINGS', 'TRADING']
+        && doc.fileName is string && doc.fileName.size() <= 128
+        && doc.status in ['valid', 'pending_verification', 'expired', 'failed_audit']
+        && doc.uploadedBy is string && doc.uploadedBy.size() <= 128
+        && doc.remarks is string && doc.remarks.size() <= 4096;
+    }
+
+    function isValidComplianceCheck(check) {
+      return check.id is string && check.id.size() <= 64
+        && check.vendorId is string && check.vendorId.size() <= 64
+        && check.vendorName is string && check.vendorName.size() <= 128
+        && check.checkType is string && check.checkType.size() <= 128
+        && check.status in ['passed', 'pending', 'failed', 'expired']
+        && check.remarks is string && check.remarks.size() <= 4096;
+    }
+
+    // 3. Match user profile
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() 
+        && userId == request.auth.uid
+        && isValidId(userId)
+        && incoming().keys().hasAll(['userId', 'email', 'role', 'fullName'])
+        && incoming().keys().size() == 4
+        && isValidUser(incoming());
+      
+      // Prevent privilege escalation - Role cannot be updated by normal user
+      allow update: if isSignedIn()
+        && userId == request.auth.uid
+        && isValidId(userId)
+        && isValidUser(incoming())
+        && (!incoming().diff(existing()).affectedKeys().hasAny(['role', 'userId', 'email']));
+      
+      allow delete: if false; // No deletion of audit profiles
+    }
+
+    // 4. Match company subsidiary documents
+    match /company_documents/{docId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      
+      allow create: if isSignedIn()
+        && isValidId(docId)
+        && isEmailVerified()
+        && incoming().uploadedBy == request.auth.token.email
+        && incoming().keys().hasAll(['id', 'documentType', 'subsidiary', 'fileName', 'fileSize', 'status', 'uploadedBy', 'uploadedAt', 'remarks'])
+        && isValidCompanyDocument(incoming());
+
+      allow update: if isSignedIn()
+        && isValidId(docId)
+        && isEmailVerified()
+        && isValidCompanyDocument(incoming())
+        && incoming().id == existing().id
+        && incoming().uploadedBy == existing().uploadedBy
+        && (
+          // Action 1: Upload a replacement - only ALLOW particular fields to lock state modifications
+          incoming().diff(existing()).affectedKeys().hasAll(['fileName', 'fileSize', 'uploadedAt', 'status'])
+          ||
+          // Action 2: Update status during compliance audits
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'remarks'])
+        );
+
+      allow delete: if isSignedIn()
+        && isValidId(docId)
+        && isEmailVerified();
+    }
+
+    // 5. Match individual vendor compliance checks
+    match /compliance_checks/{checkId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidId(checkId)
+        && isEmailVerified()
+        && incoming().keys().hasAll(['id', 'vendorId', 'vendorName', 'checkType', 'status', 'remarks', 'updatedAt'])
+        && isValidComplianceCheck(incoming());
+
+      allow update: if isSignedIn()
+        && isValidId(checkId)
+        && isEmailVerified()
+        && isValidComplianceCheck(incoming())
+        && incoming().id == existing().id
+        && incoming().vendorId == existing().vendorId
+        && (
+          // Allow updating status or documents
+          incoming().diff(existing()).affectedKeys().hasAny(['status', 'remarks', 'documentName', 'fileData', 'fileSize', 'updatedAt'])
+        );
+
+      allow delete: if false; // Audit tracks are read-only-retention
+    }
+  }
+}

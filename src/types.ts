@@ -64,6 +64,7 @@ export interface Vendor {
   createdAt: string;
   paymentTerms?: string; // e.g. "Net 30", "Net 60"
   termDuration?: string; // e.g. "12 Months", "Ongoing"
+  riskFactors?: Record<string, 'Low' | 'Medium' | 'High'>;
 }
 
 export interface Contract {
@@ -132,5 +133,6 @@ export interface CompanyDocument {
   uploadedBy: string;
   uploadedAt: string;
   remarks: string;
+  fileData?: string; // base64 string
 }
 

@@ -15,7 +15,8 @@ import {
   HelpCircle,
   UploadCloud,
   Check,
-  Eye
+  Eye,
+  AlertCircle
 } from 'lucide-react';
 
 interface ComplianceCenterProps {
@@ -30,17 +31,47 @@ interface ComplianceCenterProps {
     fileSize?: string
   ) => void;
   onAddComplianceCheck: (vendorId: string, check: Omit<ComplianceCheck, 'id' | 'vendorId' | 'vendorName' | 'updatedAt'>) => void;
+  userRole?: string;
+  userEmail?: string;
 }
 
 export default function ComplianceCenter({
   vendors,
   compliance,
   onUpdateCompliance,
-  onAddComplianceCheck
+  onAddComplianceCheck,
+  userRole = 'ADMIN',
+  userEmail = 'admin@elev8.com'
 }: ComplianceCenterProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ComplianceCheck['status'] | 'ALL'>('ALL');
   const [checkTypeFilter, setCheckTypeFilter] = useState<string | 'ALL'>('ALL');
+
+  // Secure toast parameters
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4000);
+  };
+
+  const handleUpdateComplianceSecure = (
+    checkId: string, 
+    status: ComplianceCheck['status'], 
+    remarks: string,
+    documentName?: string,
+    fileData?: string,
+    fileSize?: string
+  ) => {
+    if (userRole === 'GUEST_AUDITOR') {
+      showToast('Action Denied: External Guest Auditors hold read-only clearance.');
+      return;
+    }
+    onUpdateCompliance(checkId, status, remarks, documentName, fileData, fileSize);
+    showToast('Compliance audit check status compiled.');
+  };
 
   // Form states for creating a new audit check
   const [showAddForm, setShowAddForm] = useState(false);
@@ -125,6 +156,10 @@ export default function ComplianceCenter({
 
   const handleAuditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (userRole === 'GUEST_AUDITOR') {
+      showToast('Action Denied: External Guest Auditors hold read-only clearance.');
+      return;
+    }
     if (!selectedVendorId || !remarks) return;
 
     onAddComplianceCheck(selectedVendorId, {
@@ -142,6 +177,7 @@ export default function ComplianceCenter({
     setDocName('regulatory_filing.pdf');
     setUploadedFile(null);
     setShowAddForm(false);
+    showToast('New compliance audit checklist added.');
   };
 
   const getStatusStyle = (status: ComplianceCheck['status']) => {
@@ -172,6 +208,14 @@ export default function ComplianceCenter({
 
   return (
     <div className="space-y-6">
+      
+      {/* Toast Alert Gate */}
+      {toastMessage && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-700 font-bold flex items-center gap-2 animate-in fade-in duration-200" id="compliance_auth_toast">
+          <AlertCircle className="w-4.5 h-4.5 text-rose-500 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
       
       {/* Title block */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
@@ -557,7 +601,7 @@ export default function ComplianceCenter({
                       <select
                         id={`compliance_audit_update_${check.id}`}
                         value={check.status}
-                        onChange={(e) => onUpdateCompliance(check.id, e.target.value as ComplianceCheck['status'], check.remarks)}
+                        onChange={(e) => handleUpdateComplianceSecure(check.id, e.target.value as ComplianceCheck['status'], check.remarks)}
                         className="p-1 border text-[10px] font-bold bg-white rounded cursor-pointer outline-none w-full text-center"
                       >
                         <option value="passed">Pass Check</option>
