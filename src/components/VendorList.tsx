@@ -29,10 +29,18 @@ interface VendorListProps {
   onAddVendor: (vendor: Omit<Vendor, 'id' | 'overallScore' | 'createdAt'>) => void;
   onUpdateVendorStatus: (vendorId: string, status: Vendor['status']) => void;
   onUpdateVendorRisk: (vendorId: string, riskRating: Vendor['riskRating'], riskFactors: Record<string, 'Low' | 'Medium' | 'High'>, reason: string) => void;
-  onRenewContract: (contract: Contract) => void;
+  onRenewContract?: (contract: Contract) => void;
   onAddReview: (vendorId: string, review: Omit<PerformanceReview, 'id' | 'vendorId' | 'vendorName' | 'overallScore'>) => void;
   onUpdateCompliance: (checkId: string, status: ComplianceCheck['status'], remarks: string) => void;
   onAddComplianceCheck: (vendorId: string, check: Omit<ComplianceCheck, 'id' | 'vendorId' | 'vendorName' | 'updatedAt'>) => void;
+  userRole?: string;
+  onUpdateVendor?: (vendorId: string, updatedFields: Partial<Vendor>) => void;
+  onDeleteVendor?: (vendorId: string) => void;
+  onUpdateContract?: (contractId: string, updatedFields: Partial<Contract>) => void;
+  onDeleteContract?: (contractId: string) => void;
+  onDeleteComplianceCheck?: (checkId: string) => void;
+  onAddContract?: (newContract: Omit<Contract, 'id' | 'status' | 'complianceStatus'>) => void;
+  onRenewSubmit?: (contractId: string, extensionMonths: number, newValue: number, autoRenew: boolean, noticePeriod: number) => void;
 }
 
 export default function VendorList({
@@ -46,7 +54,15 @@ export default function VendorList({
   onRenewContract,
   onAddReview,
   onUpdateCompliance,
-  onAddComplianceCheck
+  onAddComplianceCheck,
+  userRole = 'ADMIN',
+  onUpdateVendor,
+  onDeleteVendor,
+  onUpdateContract,
+  onDeleteContract,
+  onDeleteComplianceCheck,
+  onAddContract,
+  onRenewSubmit
 }: VendorListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBUFilter, setSelectedBUFilter] = useState<BusinessUnit | 'ALL'>('ALL');
@@ -693,35 +709,22 @@ export default function VendorList({
       {selectedVendor && (
         <VendorDetailModal
           vendor={selectedVendor}
-          contracts={contracts}
-          reviews={reviews}
-          compliance={compliance}
           onClose={() => {
             // Re-sync detail modal in case status changes
             setSelectedVendor(null);
           }}
-          onRenewContract={onRenewContract}
-          onAddReview={(review) => {
-            onAddReview(selectedVendor.id, review);
-            // Refresh local reference for overall score updating
-            const updated = vendors.find(v => v.id === selectedVendor.id);
-            if (updated) setSelectedVendor(updated);
+          userRole={userRole}
+          onUpdateVendor={(vendorId, updatedFields) => {
+            if (onUpdateVendor) {
+              onUpdateVendor(vendorId, updatedFields);
+              setSelectedVendor(prev => prev ? { ...prev, ...updatedFields } : null);
+            }
           }}
-          onUpdateCompliance={onUpdateCompliance}
-          onAddComplianceCheck={(check) => {
-            onAddComplianceCheck(selectedVendor.id, check);
-            const updated = vendors.find(v => v.id === selectedVendor.id);
-            if (updated) setSelectedVendor(updated);
-          }}
-          onUpdateVendorRisk={(riskRating, riskFactors, reason) => {
-            onUpdateVendorRisk(selectedVendor.id, riskRating, riskFactors, reason);
-            // Refresh local reference for immediately reflecting risk changes
-            setSelectedVendor(prev => {
-              if (prev) {
-                return { ...prev, riskRating, riskFactors };
-              }
-              return null;
-            });
+          onDeleteVendor={(vendorId) => {
+            if (onDeleteVendor) {
+              onDeleteVendor(vendorId);
+              setSelectedVendor(null);
+            }
           }}
         />
       )}

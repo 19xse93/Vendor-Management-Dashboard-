@@ -4,7 +4,7 @@ import { Shield, Key, Eye, EyeOff, CheckCircle2, Lock, FileLock, UserCheck, Aler
 interface LoginProps {
   onLoginSuccess: (user: {
     email: string;
-    role: 'ADMIN' | 'COMPLIANCE_OFFICER' | 'GUEST_AUDITOR';
+    role: 'ADMIN' | 'COMPLIANCE_OFFICER' | 'GUEST_AUDITOR' | 'SUPER_ADMIN';
     fullName: string;
     subsidiaryAccess: 'ALL' | 'MEDIA' | 'HOLDINGS' | 'TRADING';
   }) => void;
@@ -15,7 +15,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('admin@elev8.com');
   const [password, setPassword] = useState('elev8secure2026');
-  const [role, setRole] = useState<'ADMIN' | 'COMPLIANCE_OFFICER' | 'GUEST_AUDITOR'>('ADMIN');
+  const [role, setRole] = useState<'ADMIN' | 'COMPLIANCE_OFFICER' | 'GUEST_AUDITOR' | 'SUPER_ADMIN'>('ADMIN');
   const [subsidiary, setSubsidiary] = useState<'ALL' | 'MEDIA' | 'HOLDINGS' | 'TRADING'>('ALL');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +34,12 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
   // Preset accounts for seamless auditing experience
   const PRESET_ACCOUNTS = [
+    {
+      label: 'Super Access Admin',
+      email: 'superadmin@elev8.com',
+      role: 'SUPER_ADMIN' as const,
+      desc: 'Super access to edit & delete all existing data, vendor details, and system functions.'
+    },
     {
       label: 'Corporate Administrator',
       email: 'admin@elev8.com',
@@ -76,6 +82,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       return;
     }
 
+    let resolvedRole = role;
+    const emailLower = email.toLowerCase();
+    if (emailLower.includes('super')) resolvedRole = 'SUPER_ADMIN';
+    else if (emailLower.includes('compliance')) resolvedRole = 'COMPLIANCE_OFFICER';
+    else if (emailLower.includes('audit')) resolvedRole = 'GUEST_AUDITOR';
+    else if (emailLower.includes('admin')) resolvedRole = 'ADMIN';
+
     if (isRegistering) {
       if (!fullName.trim()) {
         setError('Please enter your full name for registration.');
@@ -89,7 +102,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           fullName,
           email,
           password,
-          role,
+          role: resolvedRole,
           subsidiaryAccess: subsidiary
         };
 
@@ -104,7 +117,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         setTimeout(() => {
           onLoginSuccess({
             email,
-            role,
+            role: resolvedRole,
             fullName,
             subsidiaryAccess: subsidiary
           });
@@ -119,12 +132,12 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
         // Check presets first
         const matchedPreset = PRESET_ACCOUNTS.find(
-          (acc) => acc.email.toLowerCase() === email.toLowerCase()
+          (acc) => acc.email.toLowerCase() === emailLower
         );
 
         // Check custom registered databases
         const matchedCustom = customAccounts.find(
-          (acc) => acc.email.toLowerCase() === email.toLowerCase() && acc.password === password
+          (acc) => acc.email.toLowerCase() === emailLower && acc.password === password
         );
 
         if (matchedPreset) {
@@ -144,12 +157,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         } else {
           // If password matches name logic or general valid entry
           let resolvedName = 'Corporate Executive';
-          if (role === 'COMPLIANCE_OFFICER') resolvedName = 'Compliance Supervisor';
-          if (role === 'GUEST_AUDITOR') resolvedName = 'Guest Auditor';
+          if (resolvedRole === 'SUPER_ADMIN') resolvedName = 'Super Administrator';
+          if (resolvedRole === 'COMPLIANCE_OFFICER') resolvedName = 'Compliance Supervisor';
+          if (resolvedRole === 'GUEST_AUDITOR') resolvedName = 'Guest Auditor';
 
           onLoginSuccess({
             email,
-            role,
+            role: resolvedRole,
             fullName: resolvedName,
             subsidiaryAccess: subsidiary
           });
@@ -167,8 +181,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       setEmail('');
       setPassword('');
     } else {
-      setEmail('admin@elev8.com');
-      setPassword('elev8secure2026');
+      setEmail('superadmin@elev8.com');
+      setPassword('elev8super2026');
     }
   };
 
@@ -197,43 +211,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 flex items-center justify-center p-6 z-10 w-full max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center max-w-5xl w-full">
-          
-          {/* Left Hero column */}
-          <div className="lg:col-span-5 space-y-6 text-left" id="login_hero_side">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-xs font-semibold text-indigo-300">
-              <Lock className="w-3.5 h-3.5" />
-              <span>Identity & Cryptographic Isolation</span>
-            </div>
-
-            <h2 className="text-3xl font-black text-white tracking-tight leading-tight">
-              Central Subsidiary & Document Ledger
-            </h2>
-
-            <p className="text-slate-400 text-sm leading-relaxed">
-              Verify legal files, validate BIR clearances, assess vendor performance records, and execute subsidiary-level contract operations within a single multi-tenant workspace.
-            </p>
-
-            {/* Feature Checkboxes */}
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-300 bg-slate-900/30 p-3 rounded-xl border border-slate-900">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Encrypted base64 Upload Storage</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-300 bg-slate-900/30 p-3 rounded-xl border border-slate-900">
-                <FileLock className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Zero-Trust Network Access Policies</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-300 bg-slate-900/30 p-3 rounded-xl border border-slate-900">
-                <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Continuous SOC2 Verification Logging</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Form Card */}
-          <div className="lg:col-span-7" id="login_form_side">
+      <main className="flex-1 flex items-center justify-center p-6 z-10 w-full max-w-2xl mx-auto">
+        <div className="w-full" id="login_form_side">
             <div className="bg-slate-900/45 p-6 md:p-8 rounded-3xl border border-slate-800 shadow-xl backdrop-blur-md space-y-6">
               <div className="flex justify-between items-start">
                 <div>
@@ -334,61 +313,9 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                   </div>
                 </div>
 
-                {/* Grid selection - Role and Subsidiary Mode */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Select Role */}
-                  <div className="space-y-1.5 text-left">
-                    <label className="text-[11px] text-slate-300 font-bold uppercase tracking-wider block">Security Group</label>
-                    <select
-                      value={role}
-                      onChange={(e: any) => setRole(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white font-bold tracking-tight focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
-                    >
-                      <option value="ADMIN">Corporate Administrator</option>
-                      <option value="COMPLIANCE_OFFICER">Compliance Officer</option>
-                      <option value="GUEST_AUDITOR">External Guest Auditor</option>
-                    </select>
-                  </div>
 
-                  {/* Select Subsidiary Workspace */}
-                  <div className="space-y-1.5 text-left">
-                    <label className="text-[11px] text-slate-300 font-bold uppercase tracking-wider block">Subsidiary Filter</label>
-                    <select
-                      value={subsidiary}
-                      onChange={(e: any) => setSubsidiary(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white font-bold tracking-tight focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
-                    >
-                      <option value="ALL">All Subsidiaries combined</option>
-                      <option value="MEDIA">Elev8 Media Inc. only</option>
-                      <option value="HOLDINGS">Elev8 Holdings and Assets</option>
-                      <option value="TRADING">Trading & International</option>
-                    </select>
-                  </div>
-                </div>
 
-                {/* Sandbox Accounts Presets Helper */}
-                {!isRegistering && (
-                  <div className="space-y-2 pt-2 border-t border-slate-800/60 text-left">
-                    <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest block">Audit Credentials Sandbox Presets:</span>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5" id="presets_grid_box">
-                      {PRESET_ACCOUNTS.map((preset) => (
-                        <button
-                          key={preset.email}
-                          type="button"
-                          onClick={() => handleSelectPreset(preset)}
-                          className={`p-2 rounded-xl text-left border transition-all text-[11px] font-semibold cursor-pointer ${
-                            email === preset.email 
-                              ? 'bg-indigo-500/10 border-indigo-500 text-indigo-300 font-extrabold' 
-                              : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-300 hover:border-slate-700'
-                          }`}
-                        >
-                          <div className="font-bold text-xs truncate leading-tight">{preset.label}</div>
-                          <div className="text-[10.5px] text-slate-500 mt-0.5 truncate">{preset.email}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+
 
                 {/* Submit button */}
                 <button
@@ -404,7 +331,6 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             </div>
           </div>
 
-        </div>
       </main>
 
       {/* Footer Info */}

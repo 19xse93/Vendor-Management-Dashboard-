@@ -168,3 +168,13 @@ export async function saveComplianceCheckToFirestore(check: ComplianceCheck) {
     handleFirestoreError(error, OperationType.CREATE, path);
   }
 }
+
+export async function deleteComplianceCheckFromFirestore(checkId: string) {
+  const path = `compliance_checks/${checkId}`;
+  try {
+    await deleteDoc(doc(dbInstance, 'compliance_checks', checkId));
+    console.log("Compliance check record purged from Firestore:", checkId);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}

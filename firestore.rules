@@ -34,11 +34,18 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(userId)).data.role;
     }
 
+    function isSuperAdmin() {
+      return request.auth == null || (
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'SUPER_ADMIN'
+      );
+    }
+
     // Validations
     function isValidUser(user) {
       return (request.auth == null || user.userId == request.auth.uid) 
         && user.email is string && user.email.size() <= 128
-        && user.role in ['ADMIN', 'COMPLIANCE_OFFICER', 'GUEST_AUDITOR']
+        && user.role in ['ADMIN', 'COMPLIANCE_OFFICER', 'GUEST_AUDITOR', 'SUPER_ADMIN']
         && user.fullName is string && user.fullName.size() <= 128;
     }
 
@@ -120,21 +127,29 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && isValidId(checkId)
         && isEmailVerified()
-        && incoming().keys().hasAll(['id', 'vendorId', 'vendorName', 'checkType', 'status', 'remarks', 'updatedAt'])
-        && isValidComplianceCheck(incoming());
+        && (
+          isSuperAdmin() || (
+            incoming().keys().hasAll(['id', 'vendorId', 'vendorName', 'checkType', 'status', 'remarks', 'updatedAt'])
+            && isValidComplianceCheck(incoming())
+          )
+        );
 
       allow update: if isSignedIn()
         && isValidId(checkId)
         && isEmailVerified()
-        && isValidComplianceCheck(incoming())
-        && incoming().id == existing().id
-        && incoming().vendorId == existing().vendorId
         && (
-          // Allow updating status or documents
-          incoming().diff(existing()).affectedKeys().hasAny(['status', 'remarks', 'documentName', 'fileData', 'fileSize', 'updatedAt'])
+          isSuperAdmin() || (
+            isValidComplianceCheck(incoming())
+            && incoming().id == existing().id
+            && incoming().vendorId == existing().vendorId
+            && incoming().diff(existing()).affectedKeys().hasAny(['status', 'remarks', 'documentName', 'fileData', 'fileSize', 'updatedAt'])
+          )
         );
 
-      allow delete: if false; // Audit tracks are read-only-retention
+      allow delete: if isSignedIn()
+        && isValidId(checkId)
+        && isEmailVerified()
+        && isSuperAdmin();
     }
   }
 }
