@@ -324,8 +324,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                   className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl text-xs tracking-wider uppercase shadow-lg shadow-indigo-500/25 transition-all mt-4 cursor-pointer"
                 >
                   {loading 
-                    ? (isRegistering ? 'Registering credential nodes...' : 'Validating cryptographic key entries...') 
-                    : (isRegistering ? 'Complete Registration & Access Portal' : 'Initiate Secure Portal Session')}
+                    ? (isRegistering ? 'Registering...' : 'Logging in...') 
+                    : (isRegistering ? 'Register' : 'Log In')}
                 </button>
               </form>
             </div>
